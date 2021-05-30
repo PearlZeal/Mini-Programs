@@ -1,0 +1,426 @@
+[1]//to turn on and turn off the LED when switch is pressed
+
+#define switch 3
+#define led 4
+boolean led_state=0;
+void setup() {
+  pinMode(switch,INPUT_PULLUP);
+  pinMode(led,OUTPUT);
+}
+
+void loop()
+{
+  if(digitalRead(switch)==0)
+  {
+    led_state=!led_state;
+    digitalWrite(4,led_state);
+    while(digitalRead(switch)==0);
+  }
+}
+
+
+[2]//to turn on the LED when switch is pressed and turn off the LED when switch is released
+
+#define switch 3
+#define led 4
+
+void setup() {
+  pinMode(switch,INPUT_PULLUP);
+  pinMode(led,OUTPUT);
+}
+
+void loop()
+{
+  if(digitalRead(switch)==0)
+  {
+    digitalWrite(4,1);
+    while(digitalRead(switch)==0);
+  }
+  else
+  {
+    digitalWrite(4,0);
+  }
+}
+
+
+
+[3]//open and close door
+
+void setup()
+{
+  pinMode(3,INPUT_PULLUP);
+  pinMode(4,INPUT_PULLUP);
+  pinMode(8,OUTPUT);
+  pinMode(9,OUTPUT);
+}
+
+boolean door_status=0;
+
+void loop()
+{
+  if(digitalRead(3)==0 && door_status==0)
+  {
+    open_door();
+    while(digitalRead(3)==0);
+    door_status=1;
+  }
+  if(digitalRead(4)==0 && door_status==1)
+  {
+    close_door();
+    while(digitalRead(4)==0);
+    door_status=1;
+  }
+}
+
+
+void open_door()
+  {
+    digitalWrite(8,0);
+    digitalWrite(9,1);
+    delay(400);
+    digitalWrite(8,0);
+    digitalWrite(9,0);
+  }
+void close_door()
+  {
+    digitalWrite(8,1);
+    digitalWrite(9,0);
+    delay(400);
+    digitalWrite(8,0);
+    digitalWrite(9,0);
+  }
+
+
+
+[4]//to open and close the door by checking door's previous state
+
+
+void loop()
+{Serial.println(digitalRead(4));
+  if(digitalRead(3)==0 && door_status==0)
+  {Serial.println(" door opening");
+    open_door();
+    while(digitalRead(3)==0);
+    door_status=1;
+  }
+  if(digitalRead(4)==0 && door_status==1)
+  {Serial.println(" door closed");
+    close_door();
+    while(digitalRead(4)==0);
+    door_status=1;
+  }
+}
+
+
+void open_door()
+  {
+    digitalWrite(8,0);
+    digitalWrite(9,1);
+    delay(400);
+    digitalWrite(8,0);
+    digitalWrite(9,0);
+  }
+void close_door()
+  {
+    digitalWrite(8,1);
+    digitalWrite(9,0);
+    delay(400);
+    digitalWrite(8,0);
+    digitalWrite(9,0);
+  }
+
+[5]//sliding gate
+
+char gate_cmd, data_in;
+#define og        6
+#define cg        7
+#define motor_p   8
+#define motor_n   9
+#define ir_sensor 2
+
+
+#define opened  1
+#define opening 2
+#define closing 3
+#define closed  4
+#define hault   5
+
+int gate_status=closed;
+char prev_data;//Holds the value of previous state... either o or c.
+
+void setup()
+{
+  pinMode(og, INPUT_PULLUP);
+  pinMode(cg, INPUT_PULLUP);
+  pinMode(motor_p, OUTPUT);
+  pinMode(motor_n, OUTPUT);  
+  pinMode(ir_sensor, INPUT);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  //checks data from serial monitor
+    if(Serial.available())
+    {
+     
+        data_in = Serial.read();
+
+        if(data_in >= 'A' && data_in <= 'Z')
+        {
+          gate_cmd = data_in;
+        }
+
+        Serial.println(gate_cmd);
+        /*when IR sensors are interrupted while gate is closing, it must stop/halt.
+ * when IR sensors are interrupted while gate is opening, it must continue to open.
+ */
+   
+    if(gate_cmd=='O'&& gate_status!=opened) //motor must rotate clockwise when user presses O
+    {
+      clockwise();
+      Serial.println("OPENING");
+      prev_data='O';
+      gate_status=opening;
+    }
+    else if(gate_cmd=='C'&& gate_status!=closed)  //motor must rotate anticlockwise when user presses C
+    {
+      anticlockwise();
+      Serial.println("CLOSING");
+      prev_data='C';
+      gate_status=closing;
+    }
+    else if(gate_cmd=='H')  //motor must stop or halt when user presses H
+    {
+      halt();
+      Serial.println("halt");
+      gate_status=hault;
+     
+    }
+    else if (gate_cmd=='K' && gate_status==hault) //motor must rotate based on it's previous state when user presses K
+    {
+      continue_prev();
+    }
+   
+   }
+
+    //aAppply gaten control logic//
+    gate_cmd = ' ';
+
+    /******************************************************************************/
+    if(digitalRead(og)== 0 && gate_status==opening) //gate opened completely
+    {
+      Serial.println("gate opened completely");
+      gate_status=opened;
+      halt();
+    }
+    if(digitalRead(cg)==0 && gate_status==closing)  //gate closed completely
+    {
+      Serial.println("gate closed completely");
+      gate_status=closed;
+      halt();
+    }
+    /********************************************************************************/
+    if (digitalRead(ir_sensor)==1 && gate_status==closing)
+    {
+      halt();
+      Serial.println("obstacle");
+    }
+    if (digitalRead(ir_sensor)==0 && gate_status==closing)
+    {
+      continue_prev();
+    }
+   
+}
+/***********************************************************************************************/
+//function to rotate motor clockwise
+void anticlockwise()
+{
+  digitalWrite(motor_p, 0);
+  digitalWrite(motor_n, 1);
+}
+
+//function to rotate motor anticlockwise
+void clockwise()
+{
+  digitalWrite(motor_p, 1);
+  digitalWrite(motor_n, 0);
+}
+
+//function to stop motor
+void halt()
+{
+  digitalWrite(motor_p, 0);
+  digitalWrite(motor_n, 0);
+}
+
+//function to rotate based on previous state i.e. clockwise or anticlockwise
+void continue_prev()
+{
+  if(prev_data=='O')
+  {
+    clockwise();
+    Serial.println("opening");
+  }
+  else if(prev_data=='C')
+  {
+    anticlockwise();
+    Serial.println("closing");
+  }
+ }
+
+
+[6]//sun tracking
+
+#define east 3
+#define west 2
+#define m_p     8
+#define m_m     9
+boolean cur_dir  = 0;//assume east =0
+
+void setup() {
+  pinMode(east, INPUT);
+  pinMode(west, INPUT);
+  pinMode(m_p, OUTPUT);
+  pinMode(m_m, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  if(digitalRead(east) == 1 && digitalRead(west) == 0 && cur_dir == 0)
+    {
+       move_east();
+       Serial.println("to east");
+       while(digitalRead(east) == 1 && digitalRead(west) == 0);
+       cur_dir=1;
+    }
+    else if(digitalRead(east) == 0 && digitalRead(west) == 1 && cur_dir == 1)
+    {
+       move_west();
+       Serial.println("to west");
+       while(digitalRead(east) == 0 && digitalRead(west) == 1);
+       cur_dir=0;
+    }
+    else if(digitalRead(east) == 1 && digitalRead(west) == 1)
+    {
+       
+       Serial.println("at center?");
+       while(digitalRead(east) == 0 && digitalRead(west) == 1);
+    }
+}
+
+void move_east()
+{
+  digitalWrite(m_p, 1);
+  digitalWrite(m_m, 0);
+  delay(200);
+  digitalWrite(m_p, 0);
+  digitalWrite(m_m, 0);
+}
+
+void move_west()
+{
+  digitalWrite(m_p, 0);
+  digitalWrite(m_m, 1);
+  delay(200);
+  digitalWrite(m_p, 0);
+  digitalWrite(m_m, 0);
+}
+
+
+[7]//elevator
+
+#define fl_1   A0
+#define fl_2   A1
+#define fl_3   A2
+
+#define m_p     8
+#define m_m     9
+
+int cur_floor  = 1;
+
+void setup()
+{
+    Serial.begin(9600);
+    pinMode(fl_1, INPUT_PULLUP);
+    pinMode(fl_2, INPUT_PULLUP);
+    pinMode(fl_3, INPUT_PULLUP);
+
+    pinMode(m_p, OUTPUT);
+    pinMode(m_m, OUTPUT);
+}
+
+void loop()
+{
+    if(digitalRead(fl_1) == 0)
+    {
+       move_to(1);
+    }
+    else if(digitalRead(fl_2) == 0)
+    {
+       move_to(2);
+    }
+
+    else if(digitalRead(fl_3) == 0)
+    {
+       move_to(3);
+    }
+
+}
+
+void move_to(int a_floor)
+{
+   if(cur_floor == a_floor)
+   {
+      Serial.print("Lift is in same floor : ");
+      Serial.println(cur_floor);
+   }
+
+   else if(cur_floor < a_floor)
+   {
+      Serial.print("Moving form ");
+      Serial.print(cur_floor);
+      Serial.print(" to ");
+      Serial.println(a_floor);
+      move_up();
+      int dif = a_floor - cur_floor;
+      delay(5000 * dif);
+      stop_lift();
+      cur_floor = a_floor;
+      Serial.print("Reached ");
+      Serial.println(a_floor);
+   }
+
+   else if(cur_floor > a_floor)
+   {
+      Serial.print("Moving form ");
+      Serial.print(cur_floor);
+      Serial.print(" to ");
+      Serial.println(a_floor);
+      move_down();
+      int dif = cur_floor - a_floor;
+      delay(5000 * dif);
+      stop_lift();
+      cur_floor = a_floor;
+      Serial.print("Reached ");
+      Serial.println(a_floor);
+   }
+}
+
+void move_up()
+{
+  digitalWrite(m_p, 1);
+  digitalWrite(m_m, 0);
+}
+
+void move_down()
+{
+  digitalWrite(m_p, 0);
+  digitalWrite(m_m, 1);
+}
+
+void stop_lift()
+{
+  digitalWrite(m_p, 0);
+  digitalWrite(m_m, 0);
+}
